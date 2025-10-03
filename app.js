@@ -40,12 +40,12 @@ app.get('/', (req, res) => {
 // basic health check
 app.get('/health', (req, res) => res.json({ status: 'ok', env: envName }));
 
-// start server
-app.listen(port, () => {
-  console.log(`env-welcome app listening on port ${port} (env=${envName})`);
+// start server - bind to 0.0.0.0 so it’s accessible externally
+app.listen(port, '0.0.0.0', () => {
+  console.log(`env-welcome app listening on http://0.0.0.0:${port} (env=${envName})`);
 });
 
-// small helper to avoid accidental HTML injection (though envName is controlled)
+// small helper to avoid accidental HTML injection
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
