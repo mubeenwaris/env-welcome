@@ -13,4 +13,71 @@ on:
       - master
 
 jobs:
-  ...
+  # 🔹 Step 1: Run CI (Install, Test, Build)
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests (optional)
+        run: echo "No tests defined"
+
+  # 🔹 Step 2: Auto Deploy to Dev on 'develop' branch
+  deploy-dev:
+    needs: ci
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Dev EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST_DEV }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/env-welcome || mkdir ~/env-welcome && cd ~/env-welcome
+            pm2 stop dev-app || true
+            git pull || git clone https://github.com/${{ github.repository }} .
+            npm install
+            ENV=dev PORT=${{ secrets.EC2_PORT_DEV }} pm2 start app.js --name "dev-app" --update-env
+            pm2 save
+            echo "✅ Deployed Dev Environment"
+
+  # 🔹 Step 3: Manual Approval + Deploy to Prod
+  deploy-prod:
+    needs: ci
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: http://${{ secrets.EC2_HOST_DEV }}:${{ secrets.EC2_PORT_PROD }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to Prod EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST_DEV }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/env-welcome || mkdir ~/env-welcome && cd ~/env-welcome
+            pm2 stop prod-app || true
+            git pull || git clone https://github.com/${{ github.repository }} .
+            npm install
+            ENV=prod PORT=${{ secrets.EC2_PORT_PROD }} pm2 start app.js --name "prod-app" --update-env
+            pm2 save
+            echo "✅ Deployed Production Environment"
